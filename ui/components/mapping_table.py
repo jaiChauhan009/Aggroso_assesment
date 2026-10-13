@@ -76,6 +76,11 @@ def render_mapping_table(
                     st.error("Invalid JSON for parameters")
                     params = m.params
 
+                delete_col, _ = st.columns([1, 4])
+                with delete_col:
+                    if st.button("🗑️ Remove Mapping", key=f"{key_prefix}_del_{i}"):
+                        continue
+
                 updated_mappings.append(FieldMapping(
                     source_field=src,
                     target_field=tgt,
@@ -89,6 +94,19 @@ def render_mapping_table(
                 if m.params:
                     st.json(m.params)
                 updated_mappings.append(m)
+
+    if editable:
+        st.markdown("")
+        if st.button("➕ Add Custom Field Mapping", key=f"{key_prefix}_add_new"):
+            default_src = source_fields[0] if source_fields else "unmapped"
+            default_tgt = target_fields[0] if target_fields else "unmapped"
+            updated_mappings.append(FieldMapping(
+                source_field=default_src,
+                target_field=default_tgt,
+                transformation="RENAME",
+                params={},
+            ))
+            st.rerun()
 
     return updated_mappings
 
