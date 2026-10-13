@@ -31,14 +31,18 @@ def render():
 
         with col1:
             st.subheader("🔵 Source Schema")
-            source_method = st.radio("Source input method", ["Upload JSON", "Use bundled example"], key="src_method")
+            source_method = st.radio("Source input method", ["Upload JSON / CSV", "Use bundled example"], key="src_method")
 
-            if source_method == "Upload JSON":
-                source_file = st.file_uploader("Upload source schema JSON", type=["json"], key="src_upload")
+            if source_method == "Upload JSON / CSV":
+                source_file = st.file_uploader("Upload source schema (JSON or exported CSV)", type=["json", "csv"], key="src_upload")
                 if source_file:
                     try:
-                        source_data = json.loads(source_file.read().decode())
-                        schema = SchemaDefinition.model_validate(source_data)
+                        file_name = source_file.name.lower()
+                        if file_name.endswith(".csv"):
+                            schema = _parse_schema_csv(source_file.read().decode("utf-8"), table_name="source_table")
+                        else:
+                            source_data = json.loads(source_file.read().decode())
+                            schema = SchemaDefinition.model_validate(source_data)
                         st.success(f"✅ Valid schema: `{schema.table}` with {len(schema.fields)} fields")
                         if st.button("💾 Save Source Schema", key="save_src"):
                             _save_schema(schema, "source")
@@ -52,14 +56,18 @@ def render():
 
         with col2:
             st.subheader("🟢 Target Schema")
-            target_method = st.radio("Target input method", ["Upload JSON", "Use bundled example"], key="tgt_method")
+            target_method = st.radio("Target input method", ["Upload JSON / CSV", "Use bundled example"], key="tgt_method")
 
-            if target_method == "Upload JSON":
-                target_file = st.file_uploader("Upload target schema JSON", type=["json"], key="tgt_upload")
+            if target_method == "Upload JSON / CSV":
+                target_file = st.file_uploader("Upload target schema (JSON or exported CSV)", type=["json", "csv"], key="tgt_upload")
                 if target_file:
                     try:
-                        target_data = json.loads(target_file.read().decode())
-                        schema = SchemaDefinition.model_validate(target_data)
+                        file_name = target_file.name.lower()
+                        if file_name.endswith(".csv"):
+                            schema = _parse_schema_csv(target_file.read().decode("utf-8"), table_name="target_table")
+                        else:
+                            target_data = json.loads(target_file.read().decode())
+                            schema = SchemaDefinition.model_validate(target_data)
                         st.success(f"✅ Valid schema: `{schema.table}` with {len(schema.fields)} fields")
                         if st.button("💾 Save Target Schema", key="save_tgt"):
                             _save_schema(schema, "target")
@@ -79,23 +87,28 @@ def render():
         if not source_rec:
             st.warning("⚠️ Upload a source schema first before adding sample records.")
         else:
-            rec_method = st.radio("Sample input method", ["Upload JSON", "Use bundled example"], key="rec_method")
+            rec_method = st.radio("Sample input method", ["Upload JSON / CSV", "Use bundled example"], key="rec_method")
 
-            if rec_method == "Upload JSON":
-                rec_file = st.file_uploader("Upload sample records JSON (array of objects)", type=["json"], key="rec_upload")
+            if rec_method == "Upload JSON / CSV":
+                rec_file = st.file_uploader("Upload sample records (JSON array or raw data CSV)", type=["json", "csv"], key="rec_upload")
                 if rec_file:
                     try:
-                        records = json.loads(rec_file.read().decode())
-                        if not isinstance(records, list):
-                            st.error("Expected a JSON array of record objects.")
-                        elif len(records) > MAX_SAMPLE_SIZE:
+                        file_name = rec_file.name.lower()
+                        if file_name.endswith(".csv"):
+                            records = _parse_records_csv(rec_file.read().decode("utf-8"))
+                        else:
+                            records = json.loads(rec_file.read().decode())
+                            if not isinstance(records, list):
+                                raise ValueError("Expected a JSON array of record objects.")
+
+                        if len(records) > MAX_SAMPLE_SIZE:
                             st.error(f"Too many records: {len(records)} > max {MAX_SAMPLE_SIZE}")
                         else:
                             st.success(f"✅ Parsed {len(records)} records")
                             if st.button("💾 Save Sample Records", key="save_recs"):
                                 _save_records(source_rec.id, records)
                     except Exception as e:
-                        st.error(f"Invalid JSON: {e}")
+                        st.error(f"Invalid format: {e}")
             else:
                 if st.button("📥 Load Bundled Sample Records", key="load_recs"):
                     _load_bundled_records(source_rec.id)
@@ -129,6 +142,80 @@ def render():
                 with st.expander(f"Preview first {min(5, count)} records"):
                     for s in samples[:5]:
                         st.json(s.to_dict())
+
+
+def _parse_schema_csv(csv_text: str, table_name: str = "table") -> SchemaDefinition:
+    """Parse schema definition from exported CSV format (Field, Type, Nullable, Constraints)."""
+    import csv
+    import io
+    import ast
+    import re
+
+    # Remove UTF-8 BOM if present
+    clean_text = csv_text.lstrip("\ufeff").strip()
+    reader = csv.DictReader(io.StringIO(clean_text))
+    fields = []
+    for row in reader:
+        # Normalize keys by stripping BOM and whitespace
+        clean_row = {k.lstrip("\ufeff").strip().lower(): v for k, v in row.items() if k}
+        name = clean_row.get("field") or clean_row.get("name")
+        if not name:
+            continue
+        field_type = (clean_row.get("type") or "string").strip().lower()
+        nullable_val = (clean_row.get("nullable") or "").strip()
+        is_nullable = nullable_val in ("True", "true", "1", "✅")
+        
+        constraints_str = clean_row.get("constraints") or ""
+        
+        is_pk = "PK" in constraints_str
+        if "NOT NULL" in constraints_str:
+            is_nullable = False
+            
+        # Extract max_len
+        max_len = None
+        max_len_match = re.search(r"max_len=(\d+)", constraints_str)
+        if max_len_match:
+            max_len = int(max_len_match.group(1))
+
+        # Extract fmt
+        fmt = None
+        fmt_match = re.search(r"fmt=([^\s,]+)", constraints_str)
+        if fmt_match:
+            fmt = fmt_match.group(1)
+
+        # Extract enum
+        enum_list = None
+        enum_match = re.search(r"enum=(\[[^\]]+\])", constraints_str)
+        if enum_match:
+            try:
+                enum_list = ast.literal_eval(enum_match.group(1))
+            except Exception:
+                pass
+
+        from storage.models import SchemaField
+        fields.append(SchemaField(
+            name=name.strip(),
+            type=field_type,
+            nullable=is_nullable,
+            primary_key=is_pk,
+            max_length=max_len,
+            format=fmt,
+            enum=enum_list
+        ))
+
+    return SchemaDefinition(table=table_name, fields=fields)
+
+
+def _parse_records_csv(csv_text: str) -> list[dict]:
+    """Parse raw records CSV into list of dictionaries."""
+    import csv
+    import io
+    clean_text = csv_text.lstrip("\ufeff").strip()
+    reader = csv.DictReader(io.StringIO(clean_text))
+    clean_records = []
+    for r in reader:
+        clean_records.append({k.lstrip("\ufeff").strip(): v for k, v in r.items() if k})
+    return clean_records
 
 
 def _load_bundled(filename: str) -> SchemaDefinition | None:
