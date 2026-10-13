@@ -1,0 +1,14 @@
+{
+  "table": "employees",
+  "fields": [
+    {"name": "emp_id", "type": "string"},
+    {"name": "first_name", "type": "string"},
+    {"name": "last_name", "type": "string"},
+    {"name": "dob", "type": "string", "format": "MM/DD/YYYY"},
+    {"name": "salary", "type": "string"},
+    {"name": "dept_code", "type": "string"},
+    {"name": "is_active", "type": "string"},
+    {"name": "hire_date", "type": "string", "format": "MM-DD-YYYY"},
+    {"name": "notes", "type": "string", "nullable": true}
+  ]
+}

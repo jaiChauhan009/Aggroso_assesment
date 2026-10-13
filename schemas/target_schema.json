@@ -1,0 +1,13 @@
+{
+  "table": "staff",
+  "fields": [
+    {"name": "staffId", "type": "integer", "primary_key": true},
+    {"name": "fullName", "type": "string", "max_length": 100},
+    {"name": "dateOfBirth", "type": "string", "format": "YYYY-MM-DD"},
+    {"name": "annualSalary", "type": "float"},
+    {"name": "department", "type": "string", "enum": ["Engineering", "Marketing", "Sales", "HR", "Finance"]},
+    {"name": "active", "type": "boolean"},
+    {"name": "hireDate", "type": "string", "format": "YYYY-MM-DD"},
+    {"name": "notes", "type": "string", "nullable": true, "max_length": 500}
+  ]
+}
