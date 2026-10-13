@@ -134,21 +134,31 @@ class MappingAgent:
 
         full_prompt = f"{SYSTEM_PROMPT}\n\n{prompt}"
 
-        try:
-            response = self.model.generate_content(full_prompt)
-            raw_text = response.text if response and hasattr(response, "text") else ""
-            parsed_response = self._parse_llm_json(raw_text, source_schema, target_schema)
-            if parsed_response:
-                return parsed_response
-            logger.warning("LLM response did not contain valid JSON. Falling back to heuristic mapping.")
-            fallback = self._heuristic_mapping(source_schema, target_schema)
-            fallback.warnings.insert(0, "LLM output format was invalid; fell back to heuristic mapping.")
-            return fallback
-        except Exception as e:
-            logger.warning(f"Gemini API call failed ({e}). Falling back to heuristic mapping.")
-            fallback = self._heuristic_mapping(source_schema, target_schema)
-            fallback.warnings.insert(0, f"Gemini API call failed ({e}). Fell back to heuristic rule matching.")
-            return fallback
+        # Candidate models to try in case of deprecation/404
+        candidate_models = [self.model_name, "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+        seen_models = set()
+        last_error = None
+
+        for m_name in candidate_models:
+            if not m_name or m_name in seen_models:
+                continue
+            seen_models.add(m_name)
+            try:
+                curr_model = genai.GenerativeModel(m_name)
+                response = curr_model.generate_content(full_prompt)
+                raw_text = response.text if response and hasattr(response, "text") else ""
+                parsed_response = self._parse_llm_json(raw_text, source_schema, target_schema)
+                if parsed_response:
+                    return parsed_response
+                logger.warning(f"LLM response from {m_name} did not contain valid JSON.")
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Gemini call to {m_name} failed: {e}")
+
+        logger.warning(f"All Gemini candidate models failed ({last_error}). Falling back to heuristic mapping.")
+        fallback = self._heuristic_mapping(source_schema, target_schema)
+        fallback.warnings.insert(0, f"Gemini API call failed ({last_error}). Fell back to heuristic rule matching.")
+        return fallback
 
     def refine_mappings(self, current_mappings: list[FieldMapping], user_feedback: str) -> AgentResponse:
         """Refine existing mappings according to user feedback and instructions.
@@ -204,14 +214,20 @@ class MappingAgent:
         synonyms = {
             "fname": ["first_name", "firstname", "first", "given_name"],
             "lname": ["last_name", "lastname", "last", "surname", "family_name"],
-            "email": ["email_address", "mail", "user_email"],
+            "fullname": ["full_name", "name", "first_name", "last_name", "employee_name", "client_name"],
+            "email": ["email_address", "mail", "user_email", "email_raw"],
             "phone": ["phone_number", "telephone", "mobile", "tel", "cell"],
             "id": ["identifier", "pk", "uuid", "key"],
-            "cust_id": ["customer_id", "client_id"],
+            "cust_id": ["customer_id", "client_id", "clientid", "customerid", "emp_id", "staff_id", "staffid"],
+            "clientid": ["cust_id", "customer_id", "client_id", "emp_id", "staff_id", "staffid", "id"],
             "addr": ["address", "street", "street_address"],
             "zip": ["zip_code", "postal_code", "postcode"],
-            "created": ["created_at", "creation_date", "created_date"],
+            "created": ["created_at", "creation_date", "created_date", "registered_date", "registereddate", "signup_date"],
+            "registereddate": ["signup_date", "created_at", "reg_date", "hire_date", "hiredate"],
             "updated": ["updated_at", "modified_at", "modified_date"],
+            "balance": ["account_balance", "bal", "current_balance", "salary", "annual_salary", "annualsalary"],
+            "membershiptier": ["tier_code", "tier", "membership_tier", "dept_code", "department"],
+            "subscribed": ["is_subscribed", "active", "is_active", "status", "enabled"],
             "amt": ["amount", "total", "price", "cost"],
         }
 

@@ -15,7 +15,7 @@ MAX_SAMPLE_SIZE = 1000  # Maximum number of sample records allowed
 
 # ── AI Agent ────────────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # ── Migration ───────────────────────────────────────────────────────────────
 PLAN_STATUSES = ("DRAFT", "APPROVED", "EXECUTED", "ROLLED_BACK")
