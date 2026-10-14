@@ -9,6 +9,21 @@ An enterprise-grade, deterministic data migration planner, execution engine, and
 
 ---
 
+## 📌 Reviewer Remarks & Submission Notes
+
+- **Hosted Application URL**: [https://mwgyakrfmjzhdsg5ryej6r.streamlit.app/](https://mwgyakrfmjzhdsg5ryej6r.streamlit.app/)
+- **Public Git Repository**: [https://github.com/jaiChauhan009/Aggroso_assesment.git](https://github.com/jaiChauhan009/Aggroso_assesment.git)
+- **Reviewer Test Accounts & Credentials**: **No login credentials or passwords are required.** The application is publicly deployed with open reviewer access enabled.
+- **Sample Datasets Included**: 
+  - Bundled example datasets are pre-loaded directly inside the application for 1-click testing (`schemas/source_schema.json`, `schemas/target_schema.json`, `schemas/sample_records.json`).
+  - Secondary customer/client datasets in JSON and CSV format are also supported for custom upload testing.
+- **Secrets & Security Compliance**: 
+  - Zero passwords, API keys, or cloud credentials are hardcoded or committed to git.
+  - A credential-free configuration template is maintained in [`.env.example`](file:///.env.example).
+  - The AI Agent features a deterministic heuristic fallback engine, ensuring that all planning, mapping, and risk analysis workflows function **100% offline without requiring any external API key**. If provided via Streamlit Secrets (`GEMINI_API_KEY`), live Google Gemini LLM calls are utilized.
+
+---
+
 ## 1. System Architecture & Workflow
 
 The platform bridges legacy or bounded source schemas into modern target schemas through an auditable, deterministic lifecycle:
