@@ -216,10 +216,10 @@ def execute_migration(plan_id: str) -> Execution:
     if not plan:
         raise ValueError(f"Migration plan '{plan_id}' not found")
 
-    if plan.status != PlanStatus.APPROVED:
+    if plan.status not in (PlanStatus.APPROVED, PlanStatus.EXECUTED):
         raise ValueError(
             f"Plan '{plan_id}' cannot be executed: current status is '{plan.status.value}'. "
-            f"Only plans in APPROVED status can be executed."
+            f"Only plans in APPROVED or EXECUTED status can be executed or retried."
         )
 
     target_schema_rec = SchemaRepo.get_by_direction("target")
