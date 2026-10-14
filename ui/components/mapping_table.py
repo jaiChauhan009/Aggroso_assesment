@@ -107,43 +107,45 @@ def render_mapping_table(
                 if m.params:
                     st.json(m.params)
 
-    # 2. Add New Mapping Form
+    # 2. Add New Mapping Form - Always open and directly visible
     if editable:
         st.markdown("---")
-        with st.expander("➕ Add New Field Mapping", expanded=False):
-            with st.form(f"{key_prefix}_new_form", clear_on_submit=True):
-                st.markdown("##### Define a new field mapping:")
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    new_src = st.selectbox("Source Field", options=source_fields, key=f"{key_prefix}_new_src")
-                with c2:
-                    new_tgt = st.selectbox("Target Field", options=target_fields, key=f"{key_prefix}_new_tgt")
-                with c3:
-                    new_rule = st.selectbox("Transformation Rule", options=rules_list, key=f"{key_prefix}_new_rule")
+        st.subheader("➕ Add New Field Mapping")
+        with st.form(f"{key_prefix}_new_form", clear_on_submit=False):
+            st.markdown("Select source, target, and transformation to add to your plan:")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                new_src = st.selectbox("Source Field", options=source_fields, key=f"{key_prefix}_new_src")
+            with c2:
+                new_tgt = st.selectbox("Target Field", options=target_fields, key=f"{key_prefix}_new_tgt")
+            with c3:
+                new_rule = st.selectbox("Transformation Rule", options=rules_list, key=f"{key_prefix}_new_rule")
 
-                new_params_str = st.text_input(
-                    "Parameters (JSON, e.g. for DATE_REFORMAT or CONCAT)",
-                    value="{}",
-                    key=f"{key_prefix}_new_params",
+            new_params_str = st.text_input(
+                "Parameters (JSON, e.g. for DATE_REFORMAT or CONCAT)",
+                value="{}",
+                key=f"{key_prefix}_new_params",
+            )
+
+            submitted = st.form_submit_button("➕ Add This Mapping to Plan", use_container_width=True, type="primary")
+            if submitted:
+                try:
+                    new_params = json.loads(new_params_str) if new_params_str.strip() else {}
+                except json.JSONDecodeError:
+                    st.error("Invalid JSON syntax in Parameters field!")
+                    new_params = {}
+
+                new_mapping_obj = FieldMapping(
+                    source_field=new_src,
+                    target_field=new_tgt,
+                    transformation=new_rule,
+                    params=new_params,
                 )
-
-                submitted = st.form_submit_button("➕ Add This Mapping", use_container_width=True)
-                if submitted:
-                    try:
-                        new_params = json.loads(new_params_str) if new_params_str.strip() else {}
-                    except json.JSONDecodeError:
-                        st.error("Invalid JSON in Parameters field!")
-                        new_params = {}
-
-                    current_mappings.append(FieldMapping(
-                        source_field=new_src,
-                        target_field=new_tgt,
-                        transformation=new_rule,
-                        params=new_params,
-                    ))
-                    st.session_state[session_key] = current_mappings
-                    st.success(f"Added mapping: `{new_src}` ➔ `{new_tgt}` [{new_rule}]")
-                    st.rerun()
+                current_mappings.append(new_mapping_obj)
+                st.session_state[session_key] = current_mappings
+                st.session_state["proposed_mappings"] = current_mappings
+                st.success(f"✅ Added mapping: `{new_src}` ➔ `{new_tgt}` [{new_rule}]!")
+                st.rerun()
 
     return current_mappings
 
