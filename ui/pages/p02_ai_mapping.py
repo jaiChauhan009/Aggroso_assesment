@@ -54,6 +54,7 @@ def render():
 
                     st.session_state["agent_response"] = response
                     st.session_state["proposed_mappings"] = response.mappings
+                    st.session_state["mapping_list"] = [m.model_copy() for m in response.mappings]
                     st.success("✅ Agent completed analysis!")
                 except Exception as e:
                     st.error(f"Agent error: {e}")
@@ -64,6 +65,7 @@ def render():
         if st.button("🔄 Clear Proposals", use_container_width=True):
             st.session_state.pop("agent_response", None)
             st.session_state.pop("proposed_mappings", None)
+            st.session_state.pop("mapping_list", None)
             st.rerun()
 
     # ── Display Agent Response ──────────────────────────────────────────────
