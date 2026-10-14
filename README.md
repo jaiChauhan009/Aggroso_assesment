@@ -149,17 +149,74 @@ docker run -p 8501:8501 -e GEMINI_API_KEY="your_key" migration-workbench
 
 ---
 
-## 7. Sample Data & Reviewer Walkthrough
+## 7. Step-by-Step Walkthrough Guide (Reviewer Instructions)
 
-Bundled scenario data is available in `schemas/`:
-1. `source_schema.json`: Legacy `employees` schema (9 fields).
-2. `target_schema.json`: Modern `staff` schema (8 fields with enums, constraints, formatting).
-3. `sample_records.json`: 50 sample employee records containing valid data, type mismatches, null violations, and unmapped enum values.
+The application implements a 6-stage lifecycle for predictable data migration.
 
-### Reviewer Walkthrough:
-1. Navigate to **📁 Schema Upload** ➔ Select "Use bundled example" for Source, Target, and Sample Records ➔ Click Save.
-2. Navigate to **🤖 AI Mapping** ➔ Click "Run AI Mapping Agent" ➔ Review proposals, warnings, risk scores, and clarification questions ➔ Save as Plan Version.
-3. Navigate to **📋 Plan Review** ➔ Click "Approve This Plan".
-4. Navigate to **🧪 Dry Run** ➔ Click "Execute Dry Run" ➔ Verify counts (Source: 50, Accepted: 42, Rejected: 8) and examine field-level error evidence.
-5. Navigate to **🚀 Execute Migration** ➔ Execute Plan ➔ Test "Retry" to verify idempotency (target count remains unchanged).
-6. Navigate to **📊 Reconciliation** ➔ Run reconciliation (`50 = 42 + 8`) ➔ Test "Rollback" to verify safe database clean-up.
+```
+Step 1: 📁 Schema Upload      ➔ Ingest source/target schemas & sample records
+Step 2: 🤖 AI Mapping          ➔ AI agent proposes mappings, flags risks & asks questions
+Step 3: 📋 Plan Review         ➔ Review versioned plan & provide Human-in-the-Loop APPROVAL
+Step 4: 🧪 Dry Run             ➔ Deterministic simulation (zero target writes) & quarantine evidence
+Step 5: 🚀 Execute Migration   ➔ Insert accepted records into mock target (idempotent retry check)
+Step 6: 📊 Reconciliation      ➔ Verify Source == Target + Quarantined, full audit log & rollback
+```
+
+### Pre-loaded Test Datasets
+Bundled scenario datasets are located in `schemas/`:
+- `source_schema.json`: Legacy `employees` schema (9 fields).
+- `target_schema.json`: Modern `staff` schema (8 fields with enums, constraints, formatting).
+- `sample_records.json`: 50 sample employee records containing valid data, type mismatches, null violations, and unmapped enum values.
+
+---
+
+### Step-by-Step Reviewer Execution:
+
+#### 1. 📁 Schema Upload & Preview
+- In the left sidebar, navigate to **📁 Schema Upload**.
+- **Source Schema**: Select *"Use bundled example"* (or upload a custom JSON/CSV) ➔ Click **"Load Bundled Source Schema"**.
+- **Target Schema**: Select *"Use bundled example"* (or upload a custom JSON/CSV) ➔ Click **"Load Bundled Target Schema"**.
+- **Sample Records** tab: Select *"Use bundled example"* (or upload a custom JSON/CSV) ➔ Click **"Load Bundled Sample Records"**.
+- **Preview** tab: Inspect the side-by-side schema diff table to confirm field types, nullability, constraints, and loaded sample records.
+
+#### 2. 🤖 AI-Assisted Mapping
+- Navigate to **🤖 AI Mapping**.
+- Click **"🚀 Run AI Mapping Agent"**.
+- **Agent Output Review**:
+  - Review proposed field mappings (e.g., `emp_id` ➔ `staffId` via `CAST_INT`, `dob` ➔ `dateOfBirth` via `DATE_REFORMAT`, `dept_code` ➔ `department` via `MAP_VALUES`).
+  - Read agent explanation, risk scores (LOW/MEDIUM/HIGH), and clarification questions.
+  - (Optional) Answer clarification questions and click *"Submit Answers & Refine"*, or fine-tune transformations using the **"📝 Edit Mappings"** interactive dropdown table.
+- Click **"💾 Save as New Plan Version"** to generate **Plan v1** with status `DRAFT`.
+
+#### 3. 📋 Plan Review & Human-in-the-Loop Approval
+- Navigate to **📋 Plan Review**.
+- Select **Plan v1 (Status: 📝 DRAFT)**.
+- Review the mappings, parameters, and risk notes.
+- Enter your approver name (e.g. `reviewer`) and click **"✅ Approve This Plan"**.
+- Plan status transitions from `DRAFT` ➔ `APPROVED` (unlocked for execution).
+
+#### 4. 🧪 Deterministic Dry Run
+- Navigate to **🧪 Dry Run**.
+- Select the approved Plan v1 and click **"🧪 Execute Dry Run"**.
+- **Verify Metrics**:
+  - **Source Records**: `50`
+  - **Transformed**: `50`
+  - **Accepted**: `42`
+  - **Rejected (Quarantined)**: `8`
+  - **Invariant Check**: Confirms `50 = 42 + 8`.
+- Inspect the **Quarantine Details Table** to view field-level error evidence (`TYPE_MISMATCH` for invalid salaries, `ENUM_VIOLATION` for unmapped departments, `NULL_NOT_ALLOWED` for missing names).
+- *Target database record count remains 0 (zero-write guarantee).*
+
+#### 5. 🚀 Execute Migration & Verify Idempotency
+- Navigate to **🚀 Execute Migration**.
+- Under *"Ready for Execution"*, click **"🚀 Execute v1"**.
+- The 42 accepted records are written to the mock target store; 8 rejected records remain in quarantine.
+- Under *"Retry Previously Executed"*, click **"🔁 Retry v1"**.
+- **Verify Idempotency**: Target record count does **not** duplicate or increase (verified via unique SHA-256 keys `hash(plan_id + record + row_index)`).
+
+#### 6. 📊 Reconciliation, Audit Trail & Rollback
+- Navigate to **📊 Reconciliation**.
+- Select the execution and click **"📊 Run Reconciliation"**.
+- Confirms mathematical balance: `Source (50) == Target (42) + Quarantined (8)`.
+- Scroll to **Full Audit Trail** to view tamper-evident records for every event: `PLAN_CREATED` ➔ `APPROVED` ➔ `DRY_RUN` ➔ `EXECUTED` ➔ `RETRIED`.
+- **Test Rollback**: Under *"Rollback"*, check the confirmation box and click **"⏪ Rollback Execution"**. The target store is cleaned back to 0 records while quarantine evidence and audit history are safely preserved.
