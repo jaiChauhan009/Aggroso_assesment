@@ -109,6 +109,10 @@ def _execute_plan(plan_id: str, version: int, is_retry: bool = False):
     action = "Retrying" if is_retry else "Executing"
     with st.spinner(f"🔄 {action} migration plan v{version}..."):
         try:
+            # If retrying, ensure the plan status allows re-execution
+            if is_retry:
+                PlanRepo.update_status(plan_id, PlanStatus.APPROVED)
+
             from core.migration_executor import execute_migration
             execution = execute_migration(plan_id)
 
